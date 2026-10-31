@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="lv">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Jelgavas atklātais čempionāts skvošā 2026 — Scoreboard</title>
+<style>
+:root { --panel:rgba(7,12,18,.65); --fg:#fff; --muted:#d4e0e9; --accent:#71e0cc; }
+* { box-sizing:border-box; }
+html,body { margin:0; padding:0; background:transparent !important; overflow:hidden; font-family:Arial,Helvetica,sans-serif; }
+#board { width:320px; padding:10px 12px 9px; color:var(--fg); background:var(--panel); border-radius:5px; }
+.heading { font-size:11px; line-height:1.25; font-weight:700; letter-spacing:.1px; margin-bottom:8px; }
+.meta { display:flex; justify-content:space-between; color:var(--muted); font-size:9px; margin-bottom:6px; text-transform:uppercase; }
+.player { display:flex; align-items:center; gap:8px; min-height:28px; }
+.name { font-size:17px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.score { min-width:25px; font-size:21px; text-align:right; font-weight:800; font-variant-numeric:tabular-nums; }
+.divider { border-top:1px solid rgba(255,255,255,.28); margin:3px 0; }
+.footer { display:flex; justify-content:space-between; align-items:center; font-size:9px; color:var(--muted); margin-top:7px; }
+#dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-right:4px; }
+#status { white-space:nowrap; }
+</style>
+</head>
+<body>
+<section id="board" aria-label="Squash live scoreboard">
+ <div class="heading">Jelgavas atklātais čempionāts skvošā 2026</div>
+ <div class="meta"><span id="court">CT1</span><span id="phase">CONNECTING</span></div>
+ <div class="player"><span class="name" id="p1">Loading…</span><span class="score" id="s1"></span></div>
+ <div class="divider"></div>
+ <div class="player"><span class="name" id="p2"></span><span class="score" id="s2"></span></div>
+ <div class="footer"><span><span id="dot"></span>RANKEDIN</span><span id="status">Connecting…</span></div>
+</section>
+<script>
+const URL='https://live.rankedin.com/api/v1/court/192806/scoreboard';
+const $=id=>document.getElementById(id);
+const text=(id,value)=>$(id).textContent=value==null?'':String(value);
+function name(p) {
+ if(Array.isArray(p)) p=p[0];
+ if(!p) return '';
+ if(typeof p==='string') return p;
+ return [p.firstName,p.lastName].filter(Boolean).join(' ') || p.name || p.displayName || '';
+}
+function participants(m) {
+ if(!m) return [];
+ if(m.firstParticipant || m.secondParticipant) return [m.firstParticipant,m.secondParticipant];
+ if(Array.isArray(m.participants)) return m.participants;
+ if(m.player1 || m.player2) return [m.player1,m.player2];
+ return [];
+}
+// Only show a score when the API explicitly provides unambiguous numeric score fields.
+function numeric(v) { return (typeof v==='number' && Number.isFinite(v)) ? v : null; }
+function scores(m) {
+ if(!m) return [null,null];
+ const pairs=[['firstParticipantScore','secondParticipantScore'],['firstScore','secondScore'],['player1Score','player2Score'],['score1','score2'],['homeScore','awayScore']];
+ for(const [a,b] of pairs) { const x=numeric(m[a]),y=numeric(m[b]); if(x!==null && y!==null) return [x,y]; }
+ return [null,null];
+}
+async function refresh() {
+ try {
+  const response=await fetch(URL,{cache:'no-store'});
+  if(!response.ok) throw new Error('HTTP '+response.status);
+  const d=await response.json();
+  const live=d.liveMatch || null;
+  const match=live || d.nextMatch || d.previousMatch || null;
+  const ps=participants(match);
+  text('court',d.details?.courtName || 'COURT');
+  text('phase',live?'LIVE':d.nextMatch?'NEXT ON COURT':d.previousMatch?'PREVIOUS MATCH':'NO MATCH');
+  text('p1',name(ps[0]) || '—'); text('p2',name(ps[1]) || '—');
+  const [a,b]=scores(live);
+  text('s1',a);text('s2',b);
+  text('status',live ? (a===null?'Live · score format pending':'Live score') : 'Auto update · 5s');
+  $('dot').style.background='#71e0cc';
+ } catch(e) {
+  text('status','Connection error'); $('dot').style.background='#ff867e';
+  console.error('Rankedin scoreboard:',e);
+ }
+}
+refresh();setInterval(refresh,5000);
+</script>
+</body></html>
